@@ -1,0 +1,194 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Sounny: AGOL Batch geocoding</title>
+  <style>
+    html, body, #viewDiv {
+      padding: 0;
+      margin: 0;
+      height: 100%;
+      width: 100%;
+    }
+    .panel {
+      display: grid;
+      padding: 0px 10px 10px;
+      width:  300px;
+    }
+    .addresses {
+      overflow:hidden;
+    }
+    .esri-view .esri-ui {
+      inset: 0 !important;
+    }
+    .esri-button {
+      margin-bottom: 5px;
+    }
+    .esri-view .esri-component.esri-attribution {
+    	position: fixed;
+    }
+  </style>
+
+  <link rel="stylesheet" href="https://js.arcgis.com/4.27/esri/themes/light/main.css">
+  <script src="https://js.arcgis.com/4.27"></script>
+
+  <script>
+    require([
+      "esri/config",
+      "esri/Map",
+      "esri/views/MapView",
+      "esri/rest/locator",
+      "esri/Graphic",
+      "esri/widgets/Expand",
+    ],(esriConfig, Map, MapView, locator, Graphic, Expand)=> {
+
+      esriConfig.apiKey = "AAPK2267ab4e50e8496b9e904807b04521c2WCKTWjBJqMuBxXE2aAxqImBhcABABT3hiSlbz-4fn_axXim_f6tS1LtM4PBaAPvO";
+
+      const map = new Map({
+        basemap: "arcgis-navigation", //Basemap styles service
+      });
+
+      const view = new MapView({
+        container: "viewDiv",
+        map: map,
+        center: [-20, 30],
+        zoom: 2,
+        padding: {
+          right: 300,
+        },
+        constraints: {
+          snapToZoom: false
+        }
+      });
+      view.popup.actions = [];
+      view.popup.dockOptions ={
+        breakpoint: false,
+        buttonEnabled: false
+      }
+
+      const records = `1. Buckingham Palace<br/>2. Abeno Restaurant London<br/>3. 58 Brewer Street, London, England`;
+
+      // Display points of interest in top-right
+      const div = document.createElement("div");
+      div.setAttribute("class", "esri-widget panel");
+      const code = document.createElement("pre");
+      code.setAttribute("class", "addresses");
+      code.innerHTML = records;
+      div.appendChild(code);
+      const button = document.createElement("button");
+      button.setAttribute("class", "esri-button");
+      button.innerHTML = "Geocode addresses";
+      div.appendChild(button);
+      const buttonClear = document.createElement("button");
+      buttonClear.setAttribute("class", "esri-button");
+      buttonClear.innerHTML = "Clear";
+      div.appendChild(buttonClear);
+
+      view.ui.add(new Expand({
+        view:view,
+        content:div,
+        expanded:true,
+        mode:"floating"}), "top-right");
+
+      view.when(() => {
+        geocodeAddresses();
+      });
+
+      const geocodingServiceUrl = "http://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer";
+
+      const params = {
+        addresses: [
+          {
+            objectid: 1,
+            address: "Buckingham Palace",
+          },
+          {
+            objectid: 2,
+            address: "Abeno Restaurant London",
+          },
+          {
+            objectid: 3,
+            address: "58 Brewer Street, London, England",
+          },
+        ],
+      };
+
+      button.addEventListener("click", geocodeAddresses);
+      buttonClear.addEventListener("click", clearGraphics);
+
+      // Convert incomplete address to complete address
+      function geocodeAddresses() {
+        view.graphics.removeAll();
+        locator.addressesToLocations(geocodingServiceUrl, params).then(
+          (result) => {
+            if (result.length === 0) {
+              return;
+            }
+            result.forEach((g) => {
+              addGraphic(g);
+            });
+            // Sort
+            const graphics = view.graphics.sort((a, b) => {
+              return a.attributes.ResultID - b.attributes.ResultID;
+            });
+            // Zoom to addresses
+            view
+              .goTo({
+                target: graphics,
+                zoom: 11,
+              })
+              .then(() => {
+                // Add graphics to popup and show first one
+                view.openPopup({
+                  features: graphics.toArray(),
+                  updateLocationEnabled: true,
+                });
+              });
+          },
+          function (error) {
+            console.log(error);
+          }
+        );
+      }
+
+      function clearGraphics() {
+        view.graphics.removeAll();
+        view.popup.close();
+      }
+
+      // Show results
+      function addGraphic(result) {
+        const markerSymbol = {
+          type: "simple-marker",
+          outline: {
+            color: "white",
+            width: 1.5,
+          },
+          color: "black",
+          size: "10px",
+        };
+        const graphic = new Graphic({
+          geometry: result.location,
+          symbol: markerSymbol,
+          attributes: result.attributes,
+          popupTemplate: {
+            title: "Address #" + result.attributes.ResultID,
+            content:
+              result.attributes.LongLabel +
+              "<br>" +
+              result.attributes.Type +
+              "<br><br>" +
+              result.location.x.toFixed(5) +
+              ", " +
+              result.location.y.toFixed(5),
+          },
+        });
+        view.graphics.add(graphic);
+      }
+  });
+</script>
+</head>
+<body>
+  <div id="viewDiv"></div>
+</body>
+</html>
