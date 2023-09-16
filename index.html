@@ -2,7 +2,6 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Sounny: AGOL Batch geocoding</title>
   <style>
     html, body, #viewDiv {
@@ -16,17 +15,20 @@
       padding: 0px 10px 10px;
       width:  300px;
     }
-    .addresses {
-      overflow:hidden;
-    }
-    .esri-view .esri-ui {
-      inset: 0 !important;
-    }
-    .esri-button {
-      margin-bottom: 5px;
-    }
-    .esri-view .esri-component.esri-attribution {
+    .results-panel {
       position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      background: #f2f2f2;
+      padding: 10px;
+    }
+    table, th, td {
+      border: 1px solid black;
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 5px;
     }
   </style>
 
@@ -95,6 +97,27 @@
         mode: "floating"
       }), "top-right");
 
+      const resultsPanel = document.createElement("div");
+      resultsPanel.setAttribute("class", "results-panel");
+      const resultsTable = document.createElement("table");
+      const headerRow = resultsTable.insertRow(0);
+      headerRow.insertCell(0).innerHTML = "<b>Address</b>";
+      headerRow.insertCell(1).innerHTML = "<b>Longitude</b>";
+      headerRow.insertCell(2).innerHTML = "<b>Latitude</b>";
+      resultsPanel.appendChild(resultsTable);
+
+      const copyButton = document.createElement("button");
+      copyButton.innerHTML = "Copy to Clipboard";
+      copyButton.addEventListener("click", () => {
+        const tableText = Array.from(resultsTable.rows)
+          .map(row => Array.from(row.cells).map(cell => cell.textContent).join("\t"))
+          .join("\n");
+        navigator.clipboard.writeText(tableText);
+      });
+      resultsPanel.appendChild(copyButton);
+
+      document.body.appendChild(resultsPanel);
+
       button.addEventListener("click", () => {
         const userAddresses = document.getElementById("userAddresses").value;
         const addressArray = userAddresses.split('\n');
@@ -114,6 +137,10 @@
       const geocodingServiceUrl = "http://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer";
 
       function geocodeAddresses(params) {
+        while (resultsTable.rows.length > 1) {
+          resultsTable.deleteRow(1);
+        }
+
         view.graphics.removeAll();
         locator.addressesToLocations(geocodingServiceUrl, params).then(
           (result) => {
@@ -122,21 +149,11 @@
             }
             result.forEach((g) => {
               addGraphic(g);
+              const row = resultsTable.insertRow(-1);
+              row.insertCell(0).innerHTML = g.attributes.LongLabel;
+              row.insertCell(1).innerHTML = g.location.x.toFixed(5);
+              row.insertCell(2).innerHTML = g.location.y.toFixed(5);
             });
-            const graphics = view.graphics.sort((a, b) => {
-              return a.attributes.ResultID - b.attributes.ResultID;
-            });
-            view
-              .goTo({
-                target: graphics,
-                zoom: 11,
-              })
-              .then(() => {
-                view.openPopup({
-                  features: graphics.toArray(),
-                  updateLocationEnabled: true,
-                });
-              });
           },
           function (error) {
             console.log(error);
@@ -146,7 +163,7 @@
 
       function clearGraphics() {
         view.graphics.removeAll();
-        view.closePopup();  // Use the updated method
+        view.closePopup();
       }
 
       function addGraphic(result) {
