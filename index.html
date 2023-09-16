@@ -1,169 +1,89 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>Sounny: AGOL Batch geocoding</title>
+  <title>Sounny | OSM Batch Geocoder</title>
   <style>
-    body {
-      margin: 0;
-      padding: 0;
+    button {
+      background-color: #007bff;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
     }
-    #viewDiv {
-      height: 80vh;
-      width: 100%;
-    }
-    .panel {
-      display: grid;
-      padding: 10px 10px 10px;
-      width: 300px;
-    }
-    .results-table {
+
+    table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 20px;
     }
+
     th, td {
-      border: 1px solid black;
+      border: 1px solid #ccc;
       padding: 8px;
       text-align: left;
     }
+
+    th {
+      background-color: #f2f2f2;
+    }
   </style>
-
-  <link rel="stylesheet" href="https://js.arcgis.com/4.27/esri/themes/light/main.css">
-  <script src="https://js.arcgis.com/4.27/"></script>
-
-  <script>
-    require([
-      "esri/config",
-      "esri/Map",
-      "esri/views/MapView",
-      "esri/rest/locator",
-      "esri/Graphic",
-      "esri/widgets/Expand",
-    ], (esriConfig, Map, MapView, locator, Graphic, Expand) => {
-      esriConfig.apiKey = "AAPK2267ab4e50e8496b9e904807b04521c2WCKTWjBJqMuBxXE2aAxqImBhcABABT3hiSlbz-4fn_axXim_f6tS1LtM4PBaAPvO";
-
-      const map = new Map({
-        basemap: "arcgis-light-gray",
-      });
-
-      const view = new MapView({
-        container: "viewDiv",
-        map: map,
-        center: [-20, 30],
-        zoom: 2,
-      });
-
-      const div = document.createElement("div");
-      div.setAttribute("class", "esri-widget panel");
-
-      const textarea = document.createElement("textarea");
-      textarea.setAttribute("id", "userAddresses");
-      textarea.setAttribute("rows", "4");
-      textarea.setAttribute("cols", "30");
-      textarea.value = "Austin, Texas\nMarrakech, Morocco\nParis, France";
-      div.appendChild(textarea);
-
-      const button = document.createElement("button");
-      button.setAttribute("class", "esri-button");
-      button.innerHTML = "Geocode addresses";
-      div.appendChild(button);
-
-      const buttonClear = document.createElement("button");
-      buttonClear.setAttribute("class", "esri-button");
-      buttonClear.innerHTML = "Clear";
-      div.appendChild(buttonClear);
-
-      view.ui.add(new Expand({
-        view: view,
-        content: div,
-        expanded: true,
-        mode: "floating"
-      }), "top-right");
-
-      button.addEventListener("click", () => {
-        const userAddresses = document.getElementById("userAddresses").value;
-        const addressArray = userAddresses.split('\n');
-
-        const params = {
-          addresses: addressArray.map((address, index) => ({
-            objectid: index + 1,
-            address: address.trim(),
-          })),
-        };
-
-        geocodeAddresses(params);
-        document.getElementById("resultsBody").innerHTML = "";
-      });
-
-      buttonClear.addEventListener("click", () => {
-        view.graphics.removeAll();
-        document.getElementById("resultsBody").innerHTML = "";
-      });
-
-      function geocodeAddresses(params) {
-        view.graphics.removeAll();
-        const geocodingServiceUrl = "http://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer";
-        locator.addressesToLocations(geocodingServiceUrl, params).then(
-          (result) => {
-            if (result.length === 0) {
-              return;
-            }
-            result.forEach((g) => {
-              addGraphic(g);
-            });
-          },
-          function (error) {
-            console.log(error);
-          }
-        );
-      }
-
-      function addGraphic(result) {
-        const markerSymbol = {
-          type: "simple-marker",
-          outline: {
-            color: "white",
-            width: 2,
-          },
-          color: "black",
-          size: "15px",
-        };
-
-        const graphic = new Graphic({
-          geometry: result.location,
-          symbol: markerSymbol,
-          attributes: result.attributes,
-        });
-
-        view.graphics.add(graphic);
-
-        const tableBody = document.getElementById("resultsBody");
-        const row = tableBody.insertRow();
-        const cell1 = row.insertCell(0);
-        const cell2 = row.insertCell(1);
-        const cell3 = row.insertCell(2);
-        cell1.innerHTML = result.attributes.LongLabel;
-        cell2.innerHTML = result.location.x.toFixed(5);
-        cell3.innerHTML = result.location.y.toFixed(5);
-      }
-    });
-  </script>
 </head>
 <body>
-  <div id="viewDiv"></div>
-  <table class="results-table">
+  <h1>OSM Batch Geocoder</h1>
+  <!-- Default text added here -->
+  <textarea id="addressTextArea" rows="10" cols="50" oninput="limitLines(this, 100)">Austin, Texas
+Paris, France
+Marrakech, Morocco</textarea><br>
+  <button id="geocodeButton">Geocode</button>
+  <table id="resultTable">
     <thead>
       <tr>
         <th>Address</th>
-        <th>Longitude</th>
         <th>Latitude</th>
+        <th>Longitude</th>
       </tr>
     </thead>
-    <tbody id="resultsBody">
-      <!-- Rows will be added here -->
+    <tbody id="resultBody">
     </tbody>
   </table>
+
+  <script>
+    function limitLines(textarea, maxLines) {
+      const lines = textarea.value.split('\n');
+      if (lines.length > maxLines) {
+        textarea.value = lines.slice(0, maxLines).join('\n');
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+      document.getElementById("geocodeButton").addEventListener("click", async function() {
+        const addressText = document.getElementById("addressTextArea").value;
+        const addresses = addressText.split("\n");
+        const resultBody = document.getElementById("resultBody");
+        
+        // Clear previous results
+        resultBody.innerHTML = "";
+        
+        for (const address of addresses) {
+          const params = new URLSearchParams({
+            q: address,
+            format: "json",
+            limit: 1
+          });
+          
+          const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`);
+          const data = await response.json();
+          
+          if (data.length > 0) {
+            const newRow = resultBody.insertRow(-1);
+            newRow.insertCell(0).innerText = address;
+            newRow.insertCell(1).innerText = data[0].lat;
+            newRow.insertCell(2).innerText = data[0].lon;
+          }
+        }
+      });
+    });
+  </script>
 </body>
 </html>
