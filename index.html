@@ -40,10 +40,9 @@
       "esri/config",
       "esri/Map",
       "esri/views/MapView",
-      "esri/rest/locator",
       "esri/Graphic",
       "esri/widgets/Expand",
-    ], (esriConfig, Map, MapView, locator, Graphic, Expand) => {
+    ], function(esriConfig, Map, MapView, Graphic, Expand) {
 
       esriConfig.apiKey = "AAPK5e9f3ac421344587846ccc6655bb15a5XbSd7hfogUjnRxVU0ztvl2YazFgwqjs0zsugjZwPUpfFhG5VSSLxC21yXKgjssqa";
 
@@ -63,12 +62,6 @@
           snapToZoom: false
         }
       });
-
-      view.popup.actions = [];
-      view.popup.dockOptions = {
-        breakpoint: false,
-        buttonEnabled: false
-      }
 
       const div = document.createElement("div");
       div.setAttribute("class", "esri-widget panel");
@@ -118,7 +111,7 @@
 
       document.body.appendChild(resultsPanel);
 
-      button.addEventListener("click", () => {
+      button.addEventListener("click", async () => {
         const userAddresses = document.getElementById("userAddresses").value;
         const addressArray = userAddresses.split('\n');
 
@@ -129,44 +122,44 @@
           })),
         };
 
-        geocodeAddresses(params);
+        await geocodeAddresses(params);
       });
 
-      buttonClear.addEventListener("click", clearGraphics);
+      buttonClear.addEventListener("click", () => {
+        view.graphics.removeAll();
+        view.closePopup();
+      });
 
-      const geocodingServiceUrl = "http://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer";
-
-      function geocodeAddresses(params) {
+      async function geocodeAddresses(params) {
         while (resultsTable.rows.length > 1) {
           resultsTable.deleteRow(1);
         }
 
-        view.graphics.removeAll();
-        locator.addressesToLocations(geocodingServiceUrl, params).then(
-          (result) => {
-            if (result.length === 0) {
-              return;
-            }
-            result.forEach((g) => {
-              addGraphic(g);
-              const row = resultsTable.insertRow(-1);
-              row.insertCell(0).innerHTML = g.attributes.LongLabel;
-              row.insertCell(1).innerHTML = g.location.x.toFixed(5);
-              row.insertCell(2).innerHTML = g.location.y.toFixed(5);
-            });
+        const requestOptions = {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
           },
-          function (error) {
-            console.log(error);
+          body: `addresses=${JSON.stringify(params)}&f=json&forStorage=false&token=Your-Token-Here`
+        };
+
+        try {
+          const response = await fetch("https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/geocodeAddresses", requestOptions);
+          const data = await response.json();
+
+          if (data.locations && data.locations.length > 0) {
+            data.locations.forEach((location) => {
+              addGraphic(location);
+            });
+          } else {
+            console.log("No locations found.");
           }
-        );
+        } catch (error) {
+          console.error("There was an error with the geocoding request", error);
+        }
       }
 
-      function clearGraphics() {
-        view.graphics.removeAll();
-        view.closePopup();
-      }
-
-      function addGraphic(result) {
+      function addGraphic(location) {
         const markerSymbol = {
           type: "simple-marker",
           outline: {
@@ -178,23 +171,17 @@
         };
 
         const graphic = new Graphic({
-          geometry: result.location,
+          geometry: location.location,
           symbol: markerSymbol,
-          attributes: result.attributes,
-          popupTemplate: {
-            title: "Address #" + result.attributes.ResultID,
-            content:
-              result.attributes.LongLabel +
-              "<br>" +
-              result.attributes.Type +
-              "<br><br>" +
-              result.location.x.toFixed(5) +
-              ", " +
-              result.location.y.toFixed(5),
-          },
+          attributes: location.attributes,
         });
 
         view.graphics.add(graphic);
+
+        const row = resultsTable.insertRow(-1);
+        row.insertCell(0).innerHTML = location.attributes.User_fld;
+        row.insertCell(1).innerHTML = location.location.x.toFixed(5);
+        row.insertCell(2).innerHTML = location.location.y.toFixed(5);
       }
     });
   </script>
