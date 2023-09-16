@@ -14,10 +14,10 @@
     .panel {
       display: grid;
       padding: 0px 10px 10px;
-      width:  300px;
+      width: 300px;
     }
     .addresses {
-      overflow:hidden;
+      overflow: hidden;
     }
     .esri-view .esri-ui {
       inset: 0 !important;
@@ -27,6 +27,16 @@
     }
     .esri-view .esri-component.esri-attribution {
       position: fixed;
+    }
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid black;
+      padding: 8px;
+      text-align: left;
     }
   </style>
 
@@ -42,7 +52,6 @@
       "esri/Graphic",
       "esri/widgets/Expand",
     ], (esriConfig, Map, MapView, locator, Graphic, Expand) => {
-
       esriConfig.apiKey = "AAPK2267ab4e50e8496b9e904807b04521c2WCKTWjBJqMuBxXE2aAxqImBhcABABT3hiSlbz-4fn_axXim_f6tS1LtM4PBaAPvO";
 
       const map = new Map({
@@ -58,15 +67,15 @@
           right: 300,
         },
         constraints: {
-          snapToZoom: false
-        }
+          snapToZoom: false,
+        },
       });
 
       view.popup.actions = [];
       view.popup.dockOptions = {
         breakpoint: false,
-        buttonEnabled: false
-      }
+        buttonEnabled: false,
+      };
 
       const div = document.createElement("div");
       div.setAttribute("class", "esri-widget panel");
@@ -75,7 +84,7 @@
       textarea.setAttribute("id", "userAddresses");
       textarea.setAttribute("rows", "4");
       textarea.setAttribute("cols", "30");
-      textarea.placeholder = "Enter addresses here...";
+      textarea.value = "Austin, Texas\nMarrakech, Morocco";
       div.appendChild(textarea);
 
       const button = document.createElement("button");
@@ -107,6 +116,8 @@
         };
 
         geocodeAddresses(params);
+
+        document.getElementById("resultsBody").innerHTML = "";
       });
 
       buttonClear.addEventListener("click", clearGraphics);
@@ -146,7 +157,7 @@
 
       function clearGraphics() {
         view.graphics.removeAll();
-        view.closePopup();  // Use the updated method
+        view.closePopup();
       }
 
       function addGraphic(result) {
@@ -166,23 +177,40 @@
           attributes: result.attributes,
           popupTemplate: {
             title: "Address #" + result.attributes.ResultID,
-            content:
-              result.attributes.LongLabel +
-              "<br>" +
-              result.attributes.Type +
-              "<br><br>" +
-              result.location.x.toFixed(5) +
-              ", " +
-              result.location.y.toFixed(5),
+            content: result.attributes.LongLabel +
+                     "<br>" + result.attributes.Type +
+                     "<br><br>" + result.location.x.toFixed(5) +
+                     ", " + result.location.y.toFixed(5),
           },
         });
 
         view.graphics.add(graphic);
+
+        const tableBody = document.getElementById("resultsBody");
+        const row = tableBody.insertRow();
+        const cell1 = row.insertCell(0);
+        const cell2 = row.insertCell(1);
+        const cell3 = row.insertCell(2);
+        cell1.innerHTML = result.attributes.LongLabel;
+        cell2.innerHTML = result.location.x.toFixed(5);
+        cell3.innerHTML = result.location.y.toFixed(5);
       }
     });
   </script>
 </head>
 <body>
   <div id="viewDiv"></div>
+  <table class="results-table">
+    <thead>
+      <tr>
+        <th>Address</th>
+        <th>Longitude</th>
+        <th>Latitude</th>
+      </tr>
+    </thead>
+    <tbody id="resultsBody">
+      <!-- Rows will be added here -->
+    </tbody>
+  </table>
 </body>
 </html>
