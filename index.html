@@ -82,37 +82,53 @@
         mode: "floating"
       }), "top-right");
 
-      button.addEventListener("click", () => {
-        const userAddresses = document.getElementById("userAddresses").value;
-        const addressArray = userAddresses.split('\n');
+        button.addEventListener("click", () => {
+          const userAddresses = document.getElementById("userAddresses").value;
+          const addressArray = userAddresses.split("\n");
 
-        const params = {
-          addresses: addressArray.map((address, index) => ({
-            objectid: index + 1,
-            address: address.trim(),
-          })),
-        };
+          const params = {
+            addresses: addressArray.map((address, index) => ({
+              OBJECTID: index + 1,
+              SingleLine: address.trim(),
+            })),
+          };
 
-        geocodeAddresses(params);
-        document.getElementById("resultsBody").innerHTML = "";
-      });
+          geocodeAddresses(params, addressArray);
+          document.getElementById("resultsBody").innerHTML = "";
+        });
 
       buttonClear.addEventListener("click", () => {
         view.graphics.removeAll();
         document.getElementById("resultsBody").innerHTML = "";
       });
 
-      function geocodeAddresses(params) {
+      function geocodeAddresses(params, inputs) {
         view.graphics.removeAll();
-        const geocodingServiceUrl = "http://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer";
+        const geocodingServiceUrl = "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer";
         locator.addressesToLocations(geocodingServiceUrl, params).then(
           (result) => {
-            if (result.length === 0) {
-              return;
-            }
+            const foundIds = new Set();
             result.forEach((g) => {
+              const id = g.attributes.ResultID;
+              g.userInput = inputs[id - 1];
               addGraphic(g);
+              foundIds.add(id);
             });
+            const missing = [];
+            params.addresses.forEach((addr) => {
+              if (!foundIds.has(addr.OBJECTID)) {
+                missing.push(addr.SingleLine);
+                const tableBody = document.getElementById("resultsBody");
+                const row = tableBody.insertRow();
+                row.insertCell(0).innerHTML = addr.SingleLine;
+                row.insertCell(1).innerHTML = "No result";
+                row.insertCell(2).innerHTML = "-";
+                row.insertCell(3).innerHTML = "-";
+              }
+            });
+            if (missing.length > 0) {
+              alert("Warning: could not geocode:\n" + missing.join("\n"));
+            }
           },
           function (error) {
             console.log(error);
@@ -134,7 +150,11 @@
         const graphic = new Graphic({
           geometry: result.location,
           symbol: markerSymbol,
-          attributes: result.attributes,
+          attributes: { ...result.attributes, userInput: result.userInput },
+          popupTemplate: {
+            title: "{userInput}",
+            content: "{LongLabel}"
+          }
         });
 
         view.graphics.add(graphic);
@@ -144,9 +164,11 @@
         const cell1 = row.insertCell(0);
         const cell2 = row.insertCell(1);
         const cell3 = row.insertCell(2);
-        cell1.innerHTML = result.attributes.LongLabel;
-        cell2.innerHTML = result.location.x.toFixed(5);
-        cell3.innerHTML = result.location.y.toFixed(5);
+        const cell4 = row.insertCell(3);
+        cell1.innerHTML = result.userInput;
+        cell2.innerHTML = result.attributes.LongLabel;
+        cell3.innerHTML = result.location.x.toFixed(5);
+        cell4.innerHTML = result.location.y.toFixed(5);
       }
     });
   </script>
@@ -155,11 +177,12 @@
   <div id="viewDiv"></div>
   <table class="results-table">
     <thead>
-      <tr>
-        <th>Address</th>
-        <th>Longitude</th>
-        <th>Latitude</th>
-      </tr>
+        <tr>
+          <th>User Input</th>
+          <th>Address</th>
+          <th>Longitude</th>
+          <th>Latitude</th>
+        </tr>
     </thead>
     <tbody id="resultsBody">
       <!-- Rows will be added here -->
