@@ -70,6 +70,16 @@
       button.innerHTML = "Geocode addresses";
       div.appendChild(button);
 
+      const exportCsvBtn = document.createElement("button");
+      exportCsvBtn.setAttribute("class", "esri-button");
+      exportCsvBtn.innerHTML = "Export CSV";
+      div.appendChild(exportCsvBtn);
+
+      const exportGeoBtn = document.createElement("button");
+      exportGeoBtn.setAttribute("class", "esri-button");
+      exportGeoBtn.innerHTML = "Export GeoJSON";
+      div.appendChild(exportGeoBtn);
+
       const buttonClear = document.createElement("button");
       buttonClear.setAttribute("class", "esri-button");
       buttonClear.innerHTML = "Clear";
@@ -97,6 +107,9 @@
           document.getElementById("resultsBody").innerHTML = "";
         });
 
+      exportCsvBtn.addEventListener("click", exportCSV);
+      exportGeoBtn.addEventListener("click", exportGeoJSON);
+
       buttonClear.addEventListener("click", () => {
         view.graphics.removeAll();
         document.getElementById("resultsBody").innerHTML = "";
@@ -120,6 +133,7 @@
                 missing.push(addr.SingleLine);
                 const tableBody = document.getElementById("resultsBody");
                 const row = tableBody.insertRow();
+                row.style.backgroundColor = "#fdd";
                 row.insertCell(0).innerHTML = addr.SingleLine;
                 row.insertCell(1).innerHTML = "No result";
                 row.insertCell(2).innerHTML = "-";
@@ -169,6 +183,48 @@
         cell2.innerHTML = result.attributes.LongLabel;
         cell3.innerHTML = result.location.x.toFixed(5);
         cell4.innerHTML = result.location.y.toFixed(5);
+      }
+
+      function exportCSV() {
+        const rows = Array.from(document.querySelectorAll("#resultsBody tr"));
+        let csv = "User Input,Address,Longitude,Latitude\n";
+        rows.forEach((row) => {
+          const cells = Array.from(row.cells).map((c) => c.textContent);
+          csv += cells.join(",") + "\n";
+        });
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "results.csv";
+        link.click();
+        URL.revokeObjectURL(link.href);
+      }
+
+      function exportGeoJSON() {
+        const features = view.graphics.items.map((g) => {
+          const lon = g.geometry.longitude ?? g.geometry.x;
+          const lat = g.geometry.latitude ?? g.geometry.y;
+          return {
+            type: "Feature",
+            properties: {
+              userInput: g.attributes.userInput,
+              address: g.attributes.LongLabel,
+            },
+            geometry: {
+              type: "Point",
+              coordinates: [lon, lat],
+            },
+          };
+        });
+        const geojson = { type: "FeatureCollection", features };
+        const blob = new Blob([JSON.stringify(geojson, null, 2)], {
+          type: "application/json",
+        });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "results.geojson";
+        link.click();
+        URL.revokeObjectURL(link.href);
       }
     });
   </script>
