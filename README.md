@@ -3,6 +3,9 @@ Geocoder Web App
 Overview
 This repository contains a simple web application for batch geocoding using the ESRI JavaScript API. Given a list of addresses, this application will return their corresponding geographic coordinates (latitude and longitude).
 
+Live Preview
+The application is hosted on GitHub Pages. [View it here](https://sounny.github.io/geocoder/).
+
 Features
 Batch Geocoding
 Interactive Map View
