@@ -28,6 +28,12 @@
       padding: 8px;
       text-align: left;
     }
+    .results-table .clickable-row {
+      cursor: pointer;
+    }
+    .results-table .selected-row {
+      background-color: #d2e9f9;
+    }
   </style>
 
   <link rel="stylesheet" href="https://js.arcgis.com/4.27/esri/themes/light/main.css">
@@ -92,20 +98,20 @@
         mode: "floating"
       }), "top-right");
 
-        button.addEventListener("click", () => {
-          const userAddresses = document.getElementById("userAddresses").value;
-          const addressArray = userAddresses.split("\n");
+      button.addEventListener("click", () => {
+        const userAddresses = document.getElementById("userAddresses").value;
+        const addressArray = userAddresses.split("\n");
 
-          const params = {
-            addresses: addressArray.map((address, index) => ({
-              OBJECTID: index + 1,
-              SingleLine: address.trim(),
-            })),
-          };
+        const params = {
+          addresses: addressArray.map((address, index) => ({
+            OBJECTID: index + 1,
+            SingleLine: address.trim(),
+          })),
+        };
 
-          geocodeAddresses(params, addressArray);
-          document.getElementById("resultsBody").innerHTML = "";
-        });
+        geocodeAddresses(params, addressArray);
+        document.getElementById("resultsBody").innerHTML = "";
+      });
 
       exportCsvBtn.addEventListener("click", exportCSV);
       exportGeoBtn.addEventListener("click", exportGeoJSON);
@@ -113,10 +119,90 @@
       buttonClear.addEventListener("click", () => {
         view.graphics.removeAll();
         document.getElementById("resultsBody").innerHTML = "";
+        clearSelection();
+        featureLookup.clear();
+      });
+
+      const featureLookup = new Map();
+      let activeResultId = null;
+
+      const defaultMarkerSymbol = {
+        type: "simple-marker",
+        outline: {
+          color: "white",
+          width: 2,
+        },
+        color: "black",
+        size: "15px",
+      };
+
+      const highlightedMarkerSymbol = {
+        ...defaultMarkerSymbol,
+        outline: { ...defaultMarkerSymbol.outline },
+        color: "#0079c1",
+      };
+
+      function cloneSymbol(symbol) {
+        return { ...symbol, outline: { ...symbol.outline } };
+      }
+
+      function clearSelection() {
+        if (activeResultId === null) {
+          return;
+        }
+
+        const selected = featureLookup.get(activeResultId);
+        if (selected) {
+          selected.row.classList.remove("selected-row");
+          selected.graphic.symbol = cloneSymbol(defaultMarkerSymbol);
+        }
+        activeResultId = null;
+      }
+
+      function selectFeature(resultId, { openPopup = false } = {}) {
+        if (!featureLookup.has(resultId)) {
+          return;
+        }
+
+        if (activeResultId !== resultId) {
+          clearSelection();
+          const nextSelection = featureLookup.get(resultId);
+          nextSelection.row.classList.add("selected-row");
+          nextSelection.graphic.symbol = cloneSymbol(highlightedMarkerSymbol);
+          activeResultId = resultId;
+        }
+
+        if (openPopup) {
+          const selected = featureLookup.get(resultId);
+          view.popup.open({
+            features: [selected.graphic],
+            location: selected.graphic.geometry,
+          });
+        }
+      }
+
+      view.popup.watch("selectedFeature", (feature) => {
+        if (!feature) {
+          clearSelection();
+          return;
+        }
+
+        const resultId = feature.attributes?.ResultID;
+        if (resultId !== undefined) {
+          selectFeature(resultId);
+        }
+      });
+
+      view.popup.watch("visible", (visible) => {
+        if (!visible) {
+          clearSelection();
+        }
       });
 
       function geocodeAddresses(params, inputs) {
         view.graphics.removeAll();
+        clearSelection();
+        featureLookup.clear();
         const geocodingServiceUrl = "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer";
         locator.addressesToLocations(geocodingServiceUrl, params).then(
           (result) => {
@@ -151,19 +237,9 @@
       }
 
       function addGraphic(result) {
-        const markerSymbol = {
-          type: "simple-marker",
-          outline: {
-            color: "white",
-            width: 2,
-          },
-          color: "black",
-          size: "15px",
-        };
-
         const graphic = new Graphic({
           geometry: result.location,
-          symbol: markerSymbol,
+          symbol: cloneSymbol(defaultMarkerSymbol),
           attributes: { ...result.attributes, userInput: result.userInput },
           popupTemplate: {
             title: "{userInput}",
@@ -175,6 +251,8 @@
 
         const tableBody = document.getElementById("resultsBody");
         const row = tableBody.insertRow();
+        row.classList.add("clickable-row");
+        row.dataset.resultId = result.attributes.ResultID;
         const cell1 = row.insertCell(0);
         const cell2 = row.insertCell(1);
         const cell3 = row.insertCell(2);
@@ -183,6 +261,12 @@
         cell2.innerHTML = result.attributes.LongLabel;
         cell3.innerHTML = result.location.x.toFixed(5);
         cell4.innerHTML = result.location.y.toFixed(5);
+
+        row.addEventListener("click", () => {
+          selectFeature(result.attributes.ResultID, { openPopup: true });
+        });
+
+        featureLookup.set(result.attributes.ResultID, { graphic, row });
       }
 
       function exportCSV() {
