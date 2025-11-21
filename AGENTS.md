@@ -9,4 +9,5 @@ This file is a shared memory for all agents working in this repository.
 
 ## Change Log
 - 2025-07-23: Created `AGENTS.md` with instructions for logging changes and ideas.
+- 2025-11-21: Linked map popups and table rows with Esri-blue highlights for selections.
 
