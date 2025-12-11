@@ -5,40 +5,177 @@
   <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Sounny: AGOL Batch geocoding</title>
   <style>
+    :root {
+      --arcgis-blue: #0079c1;
+      --border-color: #dcdcdc;
+      --text-muted: #4b4b4b;
+    }
+
     body {
       margin: 0;
       padding: 0;
+      font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+      background: #f7f9fb;
+      color: #2d2d2d;
+      line-height: 1.5;
     }
+
     #viewDiv {
-      height: 80vh;
+      height: 70vh;
       width: 100%;
+      border-bottom: 1px solid var(--border-color);
     }
+
+    .app-header {
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--border-color);
+      background: white;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    .app-header h1 {
+      margin: 0 0 4px;
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .app-header p {
+      margin: 0;
+      color: var(--text-muted);
+    }
+
     .panel {
       display: grid;
-      padding: 10px 10px 10px;
-      width: 300px;
+      gap: 6px;
+      padding: 10px 12px 12px;
+      width: 320px;
     }
+
+    .panel h2 {
+      margin: 0 0 4px;
+      font-size: 18px;
+    }
+
+    .panel p {
+      margin: 0 0 6px;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .panel label {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .panel textarea {
+      padding: 8px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      resize: vertical;
+      min-height: 90px;
+      font-family: inherit;
+    }
+
+    .panel .button-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .panel .helper-text {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .results-section {
+      padding: 16px 12px 32px;
+      background: white;
+      box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.04);
+    }
+
+    .status-bar {
+      padding: 10px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      background: #f2f6fb;
+      margin: 0 0 12px;
+      color: #184f77;
+    }
+
+    .status-success {
+      background: #f1f9f3;
+      color: #1e5c37;
+      border-color: #c8e6cf;
+    }
+
+    .status-error {
+      background: #fdf2f2;
+      color: #7f1d1d;
+      border-color: #f5c2c7;
+    }
+
     .results-table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 20px;
+      margin-top: 6px;
+      font-size: 14px;
     }
-    th, td {
-      border: 1px solid black;
-      padding: 8px;
+
+    th,
+    td {
+      border: 1px solid var(--border-color);
+      padding: 10px 8px;
       text-align: left;
     }
+
+    th {
+      background: #f3f5f8;
+      font-weight: 700;
+    }
+
     .results-table .clickable-row {
       cursor: pointer;
     }
+
     .results-table .selected-row {
       background-color: #d2e9f9;
     }
+
+    .results-table .empty-row td {
+      text-align: center;
+      color: var(--text-muted);
+      font-style: italic;
+    }
   </style>
-
   <link rel="stylesheet" href="https://js.arcgis.com/4.27/esri/themes/light/main.css">
-  <script src="https://js.arcgis.com/4.27/"></script>
+</head>
+<body>
+  <header class="app-header">
+    <h1>Interactive Batch Geocoder</h1>
+    <p>Geocode many addresses at once, export results, and explore them on the map.</p>
+  </header>
+  <div id="viewDiv"></div>
+  <section class="results-section">
+    <div id="statusMessage" class="status-bar" role="status" aria-live="polite">Enter addresses and click "Geocode addresses" to get started.</div>
+    <table class="results-table">
+      <thead>
+          <tr>
+            <th>User Input</th>
+            <th>Address</th>
+            <th>Longitude</th>
+            <th>Latitude</th>
+          </tr>
+      </thead>
+      <tbody id="resultsBody">
+        <tr class="empty-row">
+          <td colspan="4">Results will appear here after geocoding.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
 
+  <script src="https://js.arcgis.com/4.27/"></script>
   <script>
     require([
       "esri/config",
@@ -61,35 +198,60 @@
         zoom: 2,
       });
 
+      const statusElement = document.getElementById("statusMessage");
+
       const div = document.createElement("div");
       div.setAttribute("class", "esri-widget panel");
 
+      const panelTitle = document.createElement("h2");
+      panelTitle.textContent = "Batch geocoder";
+      div.appendChild(panelTitle);
+
+      const panelDescription = document.createElement("p");
+      panelDescription.textContent = "Paste addresses (one per line) and geocode them in one click.";
+      div.appendChild(panelDescription);
+
+      const label = document.createElement("label");
+      label.setAttribute("for", "userAddresses");
+      label.textContent = "Addresses";
+      div.appendChild(label);
+
       const textarea = document.createElement("textarea");
       textarea.setAttribute("id", "userAddresses");
-      textarea.setAttribute("rows", "4");
+      textarea.setAttribute("rows", "5");
       textarea.setAttribute("cols", "30");
+      textarea.placeholder = "123 Main St, Austin, TX\nMarrakech, Morocco\nParis, France";
       textarea.value = "Austin, Texas\nMarrakech, Morocco\nParis, France";
       div.appendChild(textarea);
 
-      const button = document.createElement("button");
-      button.setAttribute("class", "esri-button");
-      button.innerHTML = "Geocode addresses";
-      div.appendChild(button);
+      const helperText = document.createElement("div");
+      helperText.classList.add("helper-text");
+      helperText.textContent = "Supports multi-line input; blank lines are ignored.";
+      div.appendChild(helperText);
 
-      const exportCsvBtn = document.createElement("button");
-      exportCsvBtn.setAttribute("class", "esri-button");
-      exportCsvBtn.innerHTML = "Export CSV";
-      div.appendChild(exportCsvBtn);
+      const buttonRow = document.createElement("div");
+      buttonRow.classList.add("button-row");
+      div.appendChild(buttonRow);
 
-      const exportGeoBtn = document.createElement("button");
-      exportGeoBtn.setAttribute("class", "esri-button");
-      exportGeoBtn.innerHTML = "Export GeoJSON";
-      div.appendChild(exportGeoBtn);
+      const geocodeButton = document.createElement("button");
+      geocodeButton.setAttribute("class", "esri-button");
+      geocodeButton.innerHTML = "Geocode addresses";
+      buttonRow.appendChild(geocodeButton);
 
       const buttonClear = document.createElement("button");
-      buttonClear.setAttribute("class", "esri-button");
-      buttonClear.innerHTML = "Clear";
-      div.appendChild(buttonClear);
+      buttonClear.setAttribute("class", "esri-button esri-button--secondary");
+      buttonClear.innerHTML = "Clear results";
+      buttonRow.appendChild(buttonClear);
+
+      const exportCsvBtn = document.createElement("button");
+      exportCsvBtn.setAttribute("class", "esri-button esri-button--secondary");
+      exportCsvBtn.innerHTML = "Export CSV";
+      buttonRow.appendChild(exportCsvBtn);
+
+      const exportGeoBtn = document.createElement("button");
+      exportGeoBtn.setAttribute("class", "esri-button esri-button--secondary");
+      exportGeoBtn.innerHTML = "Export GeoJSON";
+      buttonRow.appendChild(exportGeoBtn);
 
       view.ui.add(new Expand({
         view: view,
@@ -97,31 +259,6 @@
         expanded: true,
         mode: "floating"
       }), "top-right");
-
-      button.addEventListener("click", () => {
-        const userAddresses = document.getElementById("userAddresses").value;
-        const addressArray = userAddresses.split("\n");
-
-        const params = {
-          addresses: addressArray.map((address, index) => ({
-            OBJECTID: index + 1,
-            SingleLine: address.trim(),
-          })),
-        };
-
-        geocodeAddresses(params, addressArray);
-        document.getElementById("resultsBody").innerHTML = "";
-      });
-
-      exportCsvBtn.addEventListener("click", exportCSV);
-      exportGeoBtn.addEventListener("click", exportGeoJSON);
-
-      buttonClear.addEventListener("click", () => {
-        view.graphics.removeAll();
-        document.getElementById("resultsBody").innerHTML = "";
-        clearSelection();
-        featureLookup.clear();
-      });
 
       const featureLookup = new Map();
       let activeResultId = null;
@@ -145,6 +282,81 @@
       function cloneSymbol(symbol) {
         return { ...symbol, outline: { ...symbol.outline } };
       }
+
+      function setStatus(message, status = "info") {
+        const classNames = ["status-bar"];
+        if (status === "success") {
+          classNames.push("status-success");
+        }
+        if (status === "error") {
+          classNames.push("status-error");
+        }
+        statusElement.className = classNames.join(" ");
+        statusElement.textContent = message;
+      }
+
+      function updateExportButtons() {
+        const hasResults = document.querySelectorAll("#resultsBody tr").length > 0 && !document.querySelector(".empty-row");
+        exportCsvBtn.disabled = !hasResults;
+        exportGeoBtn.disabled = !hasResults;
+      }
+
+      function clearTablePlaceholder() {
+        const placeholder = document.querySelector(".empty-row");
+        if (placeholder) {
+          placeholder.remove();
+        }
+      }
+
+      function resetTable() {
+        const tableBody = document.getElementById("resultsBody");
+        tableBody.innerHTML = "";
+        const placeholderRow = document.createElement("tr");
+        placeholderRow.classList.add("empty-row");
+        placeholderRow.innerHTML = '<td colspan="4">Results will appear here after geocoding.</td>';
+        tableBody.appendChild(placeholderRow);
+      }
+
+      function getUserAddresses() {
+        return document
+          .getElementById("userAddresses")
+          .value.split("\n")
+          .map((address) => address.trim())
+          .filter(Boolean);
+      }
+
+      geocodeButton.addEventListener("click", () => {
+        const addressArray = getUserAddresses();
+
+        if (addressArray.length === 0) {
+          setStatus("Please add at least one address before geocoding.", "error");
+          return;
+        }
+
+        const params = {
+          addresses: addressArray.map((address, index) => ({
+            OBJECTID: index + 1,
+            SingleLine: address,
+          })),
+        };
+
+        resetTable();
+        updateExportButtons();
+        setStatus(`Geocoding ${addressArray.length} address${addressArray.length > 1 ? "es" : ""}...`, "info");
+        geocodeAddresses(params, addressArray);
+      });
+
+      exportCsvBtn.addEventListener("click", exportCSV);
+      exportGeoBtn.addEventListener("click", exportGeoJSON);
+
+      buttonClear.addEventListener("click", () => {
+        view.graphics.removeAll();
+        resetTable();
+        clearSelection();
+        featureLookup.clear();
+        updateExportButtons();
+        setStatus("Cleared map and table results.", "info");
+      });
 
       function clearSelection() {
         if (activeResultId === null) {
@@ -206,6 +418,9 @@
         const geocodingServiceUrl = "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer";
         locator.addressesToLocations(geocodingServiceUrl, params).then(
           (result) => {
+            if (!result.length) {
+              setStatus("No results returned. Please adjust the addresses and try again.", "error");
+            }
             const foundIds = new Set();
             result.forEach((g) => {
               const id = g.attributes.ResultID;
@@ -218,6 +433,7 @@
               if (!foundIds.has(addr.OBJECTID)) {
                 missing.push(addr.SingleLine);
                 const tableBody = document.getElementById("resultsBody");
+                clearTablePlaceholder();
                 const row = tableBody.insertRow();
                 row.style.backgroundColor = "#fdd";
                 row.insertCell(0).innerHTML = addr.SingleLine;
@@ -228,10 +444,18 @@
             });
             if (missing.length > 0) {
               alert("Warning: could not geocode:\n" + missing.join("\n"));
+              setStatus(`Located ${result.length} of ${params.addresses.length} addresses.`, "error");
+            } else {
+              setStatus(`Located ${result.length} address${result.length !== 1 ? "es" : ""}.`, "success");
             }
+            if (!missing.length && result.length === 0) {
+              setStatus("No results returned. Please adjust the addresses and try again.", "error");
+            }
+            updateExportButtons();
           },
           function (error) {
             console.log(error);
+            setStatus("Geocoding failed. Please try again in a moment.", "error");
           }
         );
       }
@@ -250,6 +474,7 @@
         view.graphics.add(graphic);
 
         const tableBody = document.getElementById("resultsBody");
+        clearTablePlaceholder();
         const row = tableBody.insertRow();
         row.classList.add("clickable-row");
         row.dataset.resultId = result.attributes.ResultID;
@@ -267,12 +492,16 @@
         });
 
         featureLookup.set(result.attributes.ResultID, { graphic, row });
+        updateExportButtons();
       }
 
       function exportCSV() {
         const rows = Array.from(document.querySelectorAll("#resultsBody tr"));
         let csv = "User Input,Address,Longitude,Latitude\n";
         rows.forEach((row) => {
+          if (row.classList.contains("empty-row")) {
+            return;
+          }
           const cells = Array.from(row.cells).map((c) => c.textContent);
           csv += cells.join(",") + "\n";
         });
@@ -310,23 +539,9 @@
         link.click();
         URL.revokeObjectURL(link.href);
       }
+
+      updateExportButtons();
     });
   </script>
-</head>
-<body>
-  <div id="viewDiv"></div>
-  <table class="results-table">
-    <thead>
-        <tr>
-          <th>User Input</th>
-          <th>Address</th>
-          <th>Longitude</th>
-          <th>Latitude</th>
-        </tr>
-    </thead>
-    <tbody id="resultsBody">
-      <!-- Rows will be added here -->
-    </tbody>
-  </table>
 </body>
 </html>
