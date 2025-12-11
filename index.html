@@ -24,6 +24,7 @@
       height: 70vh;
       width: 100%;
       border-bottom: 1px solid var(--border-color);
+      position: relative;
     }
 
     .app-header {
@@ -147,6 +148,67 @@
       color: var(--text-muted);
       font-style: italic;
     }
+
+    .api-key-banner {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #fdf8e3;
+      border: 1px solid #f4d58d;
+      border-radius: 4px;
+      padding: 8px 10px;
+      margin-top: 8px;
+      color: #8a6308;
+      font-size: 14px;
+    }
+
+    .api-key-banner strong {
+      font-weight: 700;
+    }
+
+    .api-key-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+
+    .api-key-modal__card {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      max-width: 420px;
+      width: calc(100% - 32px);
+      display: grid;
+      gap: 10px;
+    }
+
+    .api-key-modal__card h3 {
+      margin: 0;
+    }
+
+    .api-key-modal__card label {
+      font-weight: 600;
+    }
+
+    .api-key-modal__card input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      font-family: inherit;
+    }
+
+    .api-key-modal__actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 4px;
+    }
   </style>
   <link rel="stylesheet" href="https://js.arcgis.com/4.27/esri/themes/light/main.css">
 </head>
@@ -154,6 +216,7 @@
   <header class="app-header">
     <h1>Interactive Batch Geocoder</h1>
     <p>Geocode many addresses at once, export results, and explore them on the map.</p>
+    <div id="apiKeyBanner" class="api-key-banner" role="status" aria-live="polite"></div>
   </header>
   <div id="viewDiv"></div>
   <section class="results-section">
@@ -185,7 +248,10 @@
       "esri/Graphic",
       "esri/widgets/Expand",
     ], (esriConfig, Map, MapView, locator, Graphic, Expand) => {
-      esriConfig.apiKey = "AAPK2267ab4e50e8496b9e904807b04521c2WCKTWjBJqMuBxXE2aAxqImBhcABABT3hiSlbz-4fn_axXim_f6tS1LtM4PBaAPvO";
+      const API_KEY_STORAGE = "geocoder.agolApiKey";
+      const storedApiKey = localStorage.getItem(API_KEY_STORAGE) || "";
+      let currentApiKey = storedApiKey;
+      esriConfig.apiKey = currentApiKey;
 
       const map = new Map({
         basemap: "arcgis-light-gray",
@@ -253,6 +319,69 @@
       exportGeoBtn.innerHTML = "Export GeoJSON";
       buttonRow.appendChild(exportGeoBtn);
 
+      const apiKeyBanner = document.getElementById("apiKeyBanner");
+
+      const apiKeyForm = document.createElement("form");
+      apiKeyForm.classList.add("esri-widget", "panel");
+      apiKeyForm.style.width = "280px";
+
+      const apiKeyTitle = document.createElement("h2");
+      apiKeyTitle.textContent = "API key settings";
+      apiKeyForm.appendChild(apiKeyTitle);
+
+      const apiKeySummary = document.createElement("p");
+      apiKeySummary.textContent = "Enter your ArcGIS Online API key. It is stored locally and used for all map requests.";
+      apiKeyForm.appendChild(apiKeySummary);
+
+      const apiKeyLabel = document.createElement("label");
+      apiKeyLabel.setAttribute("for", "apiKeyInput");
+      apiKeyLabel.textContent = "AGOL API key";
+      apiKeyForm.appendChild(apiKeyLabel);
+
+      const apiKeyInput = document.createElement("input");
+      apiKeyInput.type = "text";
+      apiKeyInput.id = "apiKeyInput";
+      apiKeyInput.placeholder = "Enter your ArcGIS Online API key";
+      apiKeyInput.value = currentApiKey;
+      apiKeyForm.appendChild(apiKeyInput);
+
+      const apiKeyActions = document.createElement("div");
+      apiKeyActions.classList.add("button-row");
+      apiKeyForm.appendChild(apiKeyActions);
+
+      const saveApiKeyBtn = document.createElement("button");
+      saveApiKeyBtn.type = "submit";
+      saveApiKeyBtn.classList.add("esri-button");
+      saveApiKeyBtn.textContent = "Save API key";
+      apiKeyActions.appendChild(saveApiKeyBtn);
+
+      const clearApiKeyBtn = document.createElement("button");
+      clearApiKeyBtn.type = "button";
+      clearApiKeyBtn.classList.add("esri-button", "esri-button--secondary");
+      clearApiKeyBtn.textContent = "Clear key";
+      apiKeyActions.appendChild(clearApiKeyBtn);
+
+      apiKeyForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        applyApiKey(apiKeyInput.value.trim());
+        settingsExpand.expanded = false;
+      });
+
+      clearApiKeyBtn.addEventListener("click", () => {
+        applyApiKey("");
+        settingsExpand.expanded = false;
+      });
+
+      const settingsExpand = new Expand({
+        view: view,
+        content: apiKeyForm,
+        expanded: false,
+        mode: "floating",
+        expandIconClass: "esri-icon-gear",
+        expandTooltip: "API key settings",
+      });
+      view.ui.add(settingsExpand, "top-left");
+
       view.ui.add(new Expand({
         view: view,
         content: div,
@@ -295,6 +424,97 @@
         statusElement.textContent = message;
       }
 
+      function updateApiKeyBanner() {
+        const ending = currentApiKey ? currentApiKey.slice(-4) : "";
+        apiKeyInput.value = currentApiKey;
+        apiKeyBanner.innerHTML = currentApiKey
+          ? `<strong>API key:</strong> Stored (ending in ${ending}).`
+          : `<strong>API key required:</strong> Add your ArcGIS Online key to geocode.`;
+      }
+
+      function applyApiKey(nextKey) {
+        currentApiKey = nextKey;
+        esriConfig.apiKey = nextKey;
+        localStorage.setItem(API_KEY_STORAGE, nextKey);
+        updateApiKeyBanner();
+        geocodeButton.disabled = !Boolean(nextKey);
+        const message = nextKey
+          ? "API key saved. You can now geocode addresses."
+          : "API key removed. Please add one to continue.";
+        setStatus(message, nextKey ? "success" : "error");
+      }
+
+      function showApiKeyModal() {
+        const modal = document.createElement("div");
+        modal.className = "api-key-modal";
+        const card = document.createElement("div");
+        card.className = "api-key-modal__card esri-widget";
+
+        const heading = document.createElement("h3");
+        heading.textContent = "Enter your ArcGIS Online API key";
+        card.appendChild(heading);
+
+        const description = document.createElement("p");
+        description.textContent = "The key is stored in this browser so you only need to enter it once.";
+        card.appendChild(description);
+
+        const form = document.createElement("form");
+        form.autocomplete = "off";
+
+        const label = document.createElement("label");
+        label.setAttribute("for", "modalApiKeyInput");
+        label.textContent = "AGOL API key";
+        form.appendChild(label);
+
+        const modalInput = document.createElement("input");
+        modalInput.type = "text";
+        modalInput.id = "modalApiKeyInput";
+        modalInput.placeholder = "Enter your ArcGIS Online API key";
+        modalInput.value = currentApiKey;
+        form.appendChild(modalInput);
+
+        const actions = document.createElement("div");
+        actions.className = "api-key-modal__actions";
+
+        const cancelBtn = document.createElement("button");
+        cancelBtn.type = "button";
+        cancelBtn.classList.add("esri-button", "esri-button--secondary");
+        cancelBtn.textContent = "Cancel";
+        actions.appendChild(cancelBtn);
+
+        const saveBtn = document.createElement("button");
+        saveBtn.type = "submit";
+        saveBtn.classList.add("esri-button");
+        saveBtn.textContent = "Save key";
+        actions.appendChild(saveBtn);
+
+        form.appendChild(actions);
+        card.appendChild(form);
+        modal.appendChild(card);
+
+        form.addEventListener("submit", (event) => {
+          event.preventDefault();
+          applyApiKey(modalInput.value.trim());
+          modal.remove();
+        });
+
+        cancelBtn.addEventListener("click", () => {
+          modal.remove();
+        });
+
+        document.body.appendChild(modal);
+        modalInput.focus();
+      }
+
+      function initializeApiKeyState() {
+        updateApiKeyBanner();
+        geocodeButton.disabled = !Boolean(currentApiKey);
+        if (!currentApiKey) {
+          setStatus("Enter your ArcGIS Online API key to start geocoding.", "error");
+          showApiKeyModal();
+        }
+      }
+
       function updateExportButtons() {
         const hasResults = document.querySelectorAll("#resultsBody tr").length > 0 && !document.querySelector(".empty-row");
         exportCsvBtn.disabled = !hasResults;
@@ -326,6 +546,12 @@
       }
 
       geocodeButton.addEventListener("click", () => {
+        if (!currentApiKey) {
+          setStatus("Please add your ArcGIS Online API key before geocoding.", "error");
+          showApiKeyModal();
+          return;
+        }
+
         const addressArray = getUserAddresses();
 
         if (addressArray.length === 0) {
@@ -540,6 +766,7 @@
         URL.revokeObjectURL(link.href);
       }
 
+      initializeApiKeyState();
       updateExportButtons();
     });
   </script>
