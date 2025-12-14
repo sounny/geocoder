@@ -14,3 +14,4 @@ This file is a shared memory for all agents working in this repository.
 
 - 2025-11-22: Refined batch geocoder UI with status messaging, input validation, and export button handling.
 - 2025-12-12: Added user-supplied AGOL API key workflow with local storage, modal prompt, and gear settings panel.
+- 2026-01-15: Switched default basemap to OSM to avoid AGOL sign-in prompts.
